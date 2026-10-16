@@ -1,26 +1,40 @@
-'use strict';
-// middleware/rateLimiter.js
-//
-// YOUR TASK: replace this pass-through with a real rate limiter.
-//
-// Right now this middleware lets EVERY request through, so the login route can be
-// brute-forced without limit. Build a strict limiter with `express-rate-limit`
-// (already in package.json) that is exported as the middleware used by the three
-// auth routes in src/routes/auth.js.
-//
-// Requirements (checked by the tests):
-//   - windowMs: 15 minutes
-//   - max: 5 attempts per window per IP
-//   - after the limit, respond with 429 and a `Retry-After` header
-//   - standardHeaders: true, legacyHeaders: false
-//   - (recommended) skipSuccessfulRequests: true so only FAILED attempts count
-//
-// Also add a COMMENT explaining how a Redis-backed store (rate-limit-redis) would
-// replace the default in-memory store in a multi-instance deployment, and why the
-// in-memory store is not enough when several instances run behind a load balancer.
-//
-// Hint: express-rate-limit returns a middleware function — export it directly:
-//   const rateLimit = require('express-rate-limit');
-//   module.exports = rateLimit({ ...options });
+    'use strict';
 
-module.exports = (req, res, next) => next(); // TODO: replace this stub
+const rateLimit = require('express-rate-limit');
+
+const authLimiter = rateLimit({
+  // Allow 5 attempts per IP every 15 minutes.
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+
+  // Count only failed authentication attempts.
+  skipSuccessfulRequests: true,
+
+  // Send modern rate-limit headers, not legacy X-RateLimit headers.
+  standardHeaders: true,
+  legacyHeaders: false,
+
+  // express-rate-limit automatically responds with HTTP 429
+  // and sets Retry-After when the request limit is exceeded.
+
+  /*
+   * MULTI-INSTANCE DEPLOYMENT:
+   * The default in-memory store keeps counters separately inside
+   * each Node.js process. Behind a load balancer, requests can reach
+   * different instances, allowing a client to exceed the intended
+   * limit across the cluster.
+   *
+   * To solve this, configure rate-limit-redis with a shared Redis
+   * connection and use a RedisStore as the `store` option:
+   *
+   * store: new RedisStore({
+   *   sendCommand: (...args) => redis.call(...args)
+   * })
+   *
+   * Import RedisStore from rate-limit-redis and configure `redis`
+   * using your application's Redis client. Every instance must use
+   * the same shared store so the limit is enforced across the cluster.
+   */
+});
+
+module.exports = authLimiter;
